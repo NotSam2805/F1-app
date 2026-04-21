@@ -184,7 +184,7 @@ def build_dataframe_all_events(schedule: events.EventSchedule):
 
     return df, skipped_sessions
 
-def massive_dataframe(years: list[int]):
+def massive_dataframe(years: list[int]) -> pd.DataFrame:
     frames = []
     skipped_sessions = []
     for year in years:
@@ -226,5 +226,46 @@ def collect_dataframes():
 
     return df
 
+def add_avg_race_finish(dataframe: pd.DataFrame, n_races: int) -> pd.DataFrame:
+    df = dataframe.copy()
+    df = df[['DriverNumber', 'SessionName', 'Year', 'Round','ClassifiedPosition']].sort_values('Round')
+
+    averages = []
+
+    for index, row in df.iterrows():
+        if row['SessionName'] == 'R':
+            driver = row['DriverNumber']
+            round_n = int(row['Round'].iloc[0])
+            year = row['Year']
+            
+            finish_sum = 0
+            count = 0
+            start = max(round_n - n_races, 1)
+            for r in range(start, round_n):
+                this_round = df[(df['Round'] == r) & (df['DriverNumber'] == driver) & (df['Year'] == year) & (df['SessionName'] == 'R')]
+
+                try:
+                    finish_sum += int(this_round['ClassifiedPosition'].iloc[0])
+                    count += 1
+                except Exception as e:
+                    continue
+            
+            if (count == 0):
+                averages.append(None)
+            else:
+                avg_position = float(finish_sum)/float(count)
+                averages.append(avg_position)
+        else:
+            averages.append(None)
+
+    dataframe.insert(loc=12, column=f'Last{n_races}AverageFinish', value=averages)
+
+    return dataframe
+
 if __name__ == '__main__':
-    df = massive_dataframe([2025,2024,2023,2022,2021])
+    massive_df = massive_dataframe([2025,2024,2023,2022,2021])
+    massive_dataframe = add_avg_race_finish(massive_df, 3)
+
+    just_races = massive_dataframe[massive_dataframe['SessionName'] == 'R']
+    print(just_races[['DriverNumber', 'BroadcastName', 'TeamName', 'ClassifiedPosition', 'Last3AverageFinish', 'EventName', 'Year', 'Round']])
+    just_races.to_csv('./CSVs/races.csv')
