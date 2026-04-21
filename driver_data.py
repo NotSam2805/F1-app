@@ -227,15 +227,16 @@ def collect_dataframes():
     return df
 
 def add_avg_race_finish(dataframe: pd.DataFrame, n_races: int) -> pd.DataFrame:
+    dataframe = dataframe.sort_values(['Year', 'Round'])
     df = dataframe.copy()
-    df = df[['DriverNumber', 'SessionName', 'Year', 'Round','ClassifiedPosition']].sort_values('Round')
+    df = df[['DriverNumber', 'SessionName', 'Year', 'Round','ClassifiedPosition']]
 
     averages = []
 
     for index, row in df.iterrows():
         if row['SessionName'] == 'R':
             driver = row['DriverNumber']
-            round_n = int(row['Round'].iloc[0])
+            round_n = row['Round']
             year = row['Year']
             
             finish_sum = 0
@@ -248,7 +249,9 @@ def add_avg_race_finish(dataframe: pd.DataFrame, n_races: int) -> pd.DataFrame:
                     finish_sum += int(this_round['ClassifiedPosition'].iloc[0])
                     count += 1
                 except Exception as e:
-                    continue
+                    # Large value for DNF
+                    finish_sum += 25
+                    count += 1
             
             if (count == 0):
                 averages.append(None)
@@ -264,8 +267,4 @@ def add_avg_race_finish(dataframe: pd.DataFrame, n_races: int) -> pd.DataFrame:
 
 if __name__ == '__main__':
     massive_df = massive_dataframe([2025,2024,2023,2022,2021])
-    massive_dataframe = add_avg_race_finish(massive_df, 3)
-
-    just_races = massive_dataframe[massive_dataframe['SessionName'] == 'R']
-    print(just_races[['DriverNumber', 'BroadcastName', 'TeamName', 'ClassifiedPosition', 'Last3AverageFinish', 'EventName', 'Year', 'Round']])
-    just_races.to_csv('./CSVs/races.csv')
+    massive_df = add_avg_race_finish(massive_df, 3)
