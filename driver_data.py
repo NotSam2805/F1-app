@@ -265,6 +265,73 @@ def add_avg_race_finish(dataframe: pd.DataFrame, n_races: int) -> pd.DataFrame:
 
     return dataframe
 
+def add_avg_quali_finish(dataframe: pd.DataFrame, n_qualis: int) -> pd.DataFrame:
+    dataframe = dataframe.sort_values(['Year', 'Round'])
+    df = dataframe.copy()
+    df = df[['DriverNumber', 'SessionName', 'Year', 'Round','Position']]
+
+    averages = []
+
+    for index, row in df.iterrows():
+        if row['SessionName'] == 'Q':
+            driver = row['DriverNumber']
+            round_n = row['Round']
+            year = row['Year']
+            
+            finish_sum = 0
+            count = 0
+            start = max(round_n - n_qualis, 1)
+            for r in range(start, round_n):
+                this_round = df[(df['Round'] == r) & (df['DriverNumber'] == driver) & (df['Year'] == year) & (df['SessionName'] == 'Q')]
+
+                try:
+                    finish_sum += int(this_round['Position'].iloc[0])
+                    count += 1
+                except Exception as e:
+                    # Large value for DNF
+                    finish_sum += 25
+                    count += 1
+            
+            if (count == 0):
+                averages.append(None)
+            else:
+                avg_position = float(finish_sum)/float(count)
+                averages.append(avg_position)
+        else:
+            averages.append(None)
+
+    dataframe.insert(loc=12, column=f'Last{n_qualis}QualifyingAverageFinish', value=averages)
+
+    return dataframe
+
+def add_best_lap(dataframe: pd.DataFrame) -> pd.DataFrame:
+    df = dataframe[['Year', 'Round', 'DriverNumber', 'SessionName']]
+
+    loaded_sessions = {}
+
+    data = []
+
+    for index, row in df.iterrows():
+        key = (row['Year'], row['Round'], row['SessionName'])
+        session = None
+        if key in loaded_sessions.keys():
+            session = loaded_sessions[key]
+        else:
+            session = f1.get_session(row['Year'], row['Round'], row['SessionName'])
+            session.load()
+            loaded_sessions[key] = session
+        driver_info = session.laps.pick_drivers(row['DriverNumber'])
+        best_lap = driver_info.pick_fastest()
+        data.append(best_lap)
+    
+    dataframe.insert(loc=12, column=f'FastestLap', value=data)
+
+    return dataframe
+
 if __name__ == '__main__':
-    massive_df = massive_dataframe([2025,2024,2023,2022,2021])
-    massive_df = add_avg_race_finish(massive_df, 3)
+    big_df = massive_dataframe([2021])
+    big_df = add_avg_race_finish(big_df, 5)
+    big_df = add_avg_quali_finish(big_df, 5)
+    big_df = add_best_lap(big_df)
+
+    big_df.to_csv('./CSVs/All_2021.csv')
